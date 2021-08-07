@@ -1,0 +1,387 @@
+---
+title: "Final Part"
+output: html_document
+---
+
+Video Game Dataset Link:  https://www.kaggle.com/rush4ratio/video-game-sales-with-ratings
+
+```{r}
+# load all necessary packages
+library(boot)
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(gridExtra)
+
+# load the data
+videogames <- read_csv("/Users/tracylam/Desktop/school/STAT 167/Final Project/Video_Games_Sales.csv")
+```
+
+```{r Clean Data}
+# Setting data to view total number of NA observations 
+all_NA <- videogames %>% filter(is.na(Critic_Score)| is.na(Name)| is.na(Critic_Count)| is.na(Genre)| is.na(User_Score)| is.na(User_Count)| is.na(Developer)| is.na(Rating)| User_Score == "tbd"|Year_of_Release == "N/A")    # 9893 rows with NA 
+
+# Setting data to contain no NA values 
+videogames1 <- 
+  videogames %>%
+  filter(!is.na(Name), !is.na(Platform), !is.na(Year_of_Release), !is.na(Genre), !is.na(Publisher), !is.na(NA_Sales), !is.na(EU_Sales), !is.na(JP_Sales), !is.na(Other_Sales), !is.na(Global_Sales), !is.na(Critic_Score), !is.na(User_Score), User_Score != "tbd", !is.na(Rating), !is.na(Developer), Year_of_Release != "N/A")
+
+# Converting columns to become double due to having numeric values 
+videogames1$User_Score <- as.double(videogames1$User_Score)
+videogames1$Year_of_Release <- as.double(videogames1$Year_of_Release)
+videogames1
+```
+
+## **Question**: Which video games are different audiences least attracted to? (Kids? Adults? Teens?)
+
+### **Splitting Data Set into Ratings**
+
+We have grouped the games into its specific ratings to categorize our different audiences. However, due to a lack of data in rating EC, we had to remove it from our observations. The rating K-A was also paired together with the E Rated games due to the fact that K-A, also known as Kids-Adults, was the rating name for E before 1998. At the same time, we also grouped AO games together with Mature games due to its similar targeted age range. Due to these conditions, we looked at the audience based on four major categories:
+
+- E for Everyone which meant little kids and family friendly content
+- E10 for Everyone 10+ which meant kids and anyone 10 or older
+- T for Teen which meant any teenagers
+- M for Mature which meant for anyone ages 17 and up
+
+```{r, collapse=T}
+#makes sure user_score is numeric
+videogames1 <- transform(videogames1, User_Score = as.numeric(User_Score))
+#Filter the games into their own respective ratings
+#Everyone Games
+E_Rated_Games <- filter(videogames1, Rating == "E" | Rating == "K-A")
+#E10 Games
+E10_Rated_Games <- filter(videogames1, Rating == "E10+")
+#T Games
+T_Rated_Games <- filter(videogames1, Rating == "T")
+#M Games
+M_Rated_Games <- filter(videogames1, Rating == "M" | Rating == "AO")
+```
+
+To visualize the different dataset, we used plots to look at each video game rating with the information of its global sales spread across different genres. (The code for just Everyone games are shown while the rest are hidden in the html due to it being the same code with just the different rating tibbles. The results are still provided.)
+
+```{r, collapse=T}
+#For E Rated Games
+ggplot(data = E_Rated_Games)+ # plot video_game_data
+  geom_point(mapping = aes(x = Genre, y = Global_Sales, color = Genre), position = "jitter") +
+  ggtitle("E Rated Games Global Sales Across Genres") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+```
+```{r, echo=F}
+#For E10 Rated Games
+ggplot(data = E10_Rated_Games)+ # plot video_game_data
+  geom_point(mapping = aes(x = Genre, y = Global_Sales, color = Genre), position = "jitter") +
+  ggtitle("E10 Rated Games Global Sales Across Genres") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+#For T Rated Games
+ggplot(data = T_Rated_Games)+ # plot video_game_data
+  geom_point(mapping = aes(x = Genre, y = Global_Sales, color = Genre), position = "jitter") +
+  ggtitle("T Rated Games Global Sales Across Genres") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+#For M Rated Games
+ggplot(data = M_Rated_Games)+ # plot video_game_data
+  geom_point(mapping = aes(x = Genre, y = Global_Sales, color = Genre), position = "jitter") +
+  ggtitle("M Rated Games Global Sales Across Genres") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+```
+
+As we can see with the plots, each of the ratings had an abundance of games in specific genres. The genres with the most games made typically also had the most amount of global sales within it. For instance, in E-Rated Games, sports and racing games had a lot of games within that genre and sold the best. For E10-Rated games, many of the genres sold well despite not having as many games categorized as them compared to games that are considered action or misc. For Teen games, it was a similar spread as E10 where a lot of genres did well. With Mature games, action, role-playing, and shooter games appear to do the best while everything else does mediocre. 
+
+### **Global Sales for Each Rating**
+
+To see how well attracted a game is to a particular audience, we decided to take a look at the global sales as a factor. To do so, we looked at a summary of the global sales and used the 25th percentile as a way to tell us what games are considered to have performed poorly in terms of sales. For this we also made sure to filter out any NA's to help the data be more accurate. We complete this process for each of the ratings. (Once again, the code for the other ratings are hidden due to its similarity with the code for the Everyone Rating; however, the results are shown.)
+
+E (Everyone) Rating
+```{r, collapse=T}
+#looks at how which of the genres is most made within the E Rating
+E_Rated_Games %>% count(Genre) %>% arrange(n)
+#Use summary to find out the 25th percentile to use to see if a game performed poorly sales wise
+summary(E_Rated_Games$Global_Sales)
+#Creates a new tibble of the poorly performed games sales wise
+ELGS <- filter(E_Rated_Games, Global_Sales <= 0.1300)
+ELGS <- ELGS %>% select(Name, Genre, Global_Sales) %>% arrange(Global_Sales)
+head(ELGS)
+#groups by genre and counts the amount in each genre
+ELGS %>% group_by(Genre) %>% summarise(amount = n()) %>% arrange(desc(amount))
+```
+
+E10 (Everyone 10 and up) Rating
+```{r, echo=F}
+#looks at how which of the genres is most made within the E Rating
+E10_Rated_Games %>% count(Genre) %>% arrange(n)
+#Use summary to find out the 25th percentile to use to see if a game performed poorly sales wise
+summary(E10_Rated_Games$Global_Sales)
+#Creates a new tibble of the poorly performed games sales wise
+E10LGS <- filter(E10_Rated_Games, Global_Sales <= 0.1100)
+E10LGS <- E10LGS %>% select(Name, Genre, Global_Sales) %>% arrange(Global_Sales)
+head(E10LGS)
+#groups by genre and counts the amount in each genre
+E10LGS %>% group_by(Genre) %>% summarise(amount = n()) %>% arrange(desc(amount))
+```
+
+T (Teen) Rating
+```{r, echo=F}
+#looks at how which of the genres is most made within the E Rating
+T_Rated_Games %>% count(Genre) %>% arrange(n)
+#Use summary to find out the 25th percentile to use to see if a game performed poorly sales wise
+summary(T_Rated_Games$Global_Sales)
+#Creates a new tibble of the poorly performed games sales wise
+TLGS <- filter(T_Rated_Games, Global_Sales <= 0.1000)
+TLGS <- TLGS %>% select(Name, Genre, Global_Sales) %>% arrange(Global_Sales)
+head(TLGS)
+#groups by genre and counts the amount in each genre
+TLGS %>% group_by(Genre) %>% summarise(amount = n()) %>% arrange(desc(amount))
+```
+
+M (Mature 17 and up) Rating
+```{r, echo=F}
+#looks at how which of the genres is most made within the E Rating
+M_Rated_Games %>% count(Genre) %>% arrange(n)
+#filters our any NA within the Global_Sales variable
+M_Rated_Games <- M_Rated_Games %>% filter (!is.na(Global_Sales))
+#Use summary to find out the 25th percentile to use to see if a game performed poorly sales wise
+summary(M_Rated_Games$Global_Sales)
+#Creates a new tibble of the poorly performed games sales wise
+MLGS <- filter(E10_Rated_Games, Global_Sales <= 0.1200)
+MLGS <- MLGS %>% select(Name, Genre, Global_Sales) %>% arrange(Global_Sales)
+head(MLGS)
+#groups by genre and counts the amount in each genre
+MLGS %>% group_by(Genre) %>% summarise(amount = n()) %>% arrange(desc(amount))
+```
+
+As seen with all of these ratings, the genres with the most games in it are also the ones that usually had the most games that did not sell as well. An explanation for this could be due to the fact of the abundance of games within a specific genre. For instance, despite some sports games selling very well within the E-Rated games, this does not mean every sports game for everyone will do well. A reason as to why there may be so many games within these popular genres may be due to the fact that companies saw such genres doing well for specific ages and decided to create their own but that doesn't always end in a good result.
+
+Although global sales can be a method of telling us how well a game is received by the audience, our data makes it difficult to use that as the only factor since the dataset rounds the sales which makes a lot of games have the same number of sales. With this in mind, we start looking at critic and user scores as a way to possibly see how a game performs with different audiences.
+
+### **Critic and User Score with Each Major Rating**
+
+In this part, we take a look at the average critic score and user score within each of the major ratings. With this information, we can take a look at whether or not games in each rating may be rated differently between each of the game ratings. However, before we can do so, we make sure that the amount of critics and users rating it is around 30 and above so that we have a fair amount of people giving their opinions on the games. I also divided the critics score by 10 so that it could be on the same scale as the user score for the plot. (The code for the other ratings are hidden in html due to it being similar to the E-Rated code but just with the tibble corresponding to the respective rating.)
+
+```{r,collapse=T}
+#E Rated
+E_Rated_SC <- filter (E_Rated_Games, Critic_Count >= 30, User_Count >= 30)
+mean(E_Rated_SC$Critic_Score/10)
+mean(E_Rated_SC$User_Score)
+```
+
+```{r,echo=F}
+#E10 Rated
+E10_Rated_SC <- filter (E10_Rated_Games, Critic_Count >= 30, User_Count >= 30)
+mean(E10_Rated_SC$Critic_Score/10)
+mean(E10_Rated_SC$User_Score)
+#T Rated)
+T_Rated_SC <- filter (T_Rated_Games, Critic_Count >= 30, User_Count >= 30)
+mean(T_Rated_SC$Critic_Score/10)
+mean(T_Rated_SC$User_Score)
+#M Rated
+M_Rated_SC <- filter (M_Rated_Games, Critic_Count >= 30, User_Count >= 30)
+mean(M_Rated_SC$Critic_Score/10)
+mean(M_Rated_SC$User_Score)
+```
+
+```{r,collapse=T}
+#Created data frame with the average critic and user score for each ratings
+Ratings_SI <- data.frame("Rating" = c("E", "E", "E10", "E10", "T", "T", "M", "M"), 
+                         "Scores" = c(7.992264, 7.5149, 7.766038, 7.465566, 7.658255, 7.574228, 7.7318, 7.403022),
+                         "Type" = c("Critic", "User", "Critic", "User", "Critic", "User", "Critic", "User"))
+
+#plot the results to see how the critic and user scores differ from each other
+#red is user scores while blue is critic score
+ggplot(data = Ratings_SI) +
+  geom_bar(aes(x = Rating, y = Scores, fill = Type == "Critic"), stat = "identity") +
+  theme(legend.position = "none") +
+  ggtitle("Average Critic and User Scores Among Ratings")
+```
+
+As we can see above, the average critics and user score did not vary by much despite the different ratings. Due to this observation, critic and user score may not be the best in determining the least attractive games to the different major audiences. It may also indicate how ratings may not be as important when critics or users are rating a game since it doesn't seem to have an influence in scores which was something we will see in the potential models. I also decided to look at the means since the critic scores and user scores follow a somewhat normal distribution compared to the sales.
+
+### **Global Sales, Critic Score, and User Score with Each Major Rating**
+
+In this section, we combined the 3 factors that can contribute to whether a video game is well liked to a targeted audience. By taking a look at the games that had global sales, critics scores and user scores below the 25th percentile, we can list the games that take all of that into consideration. We have also taken account of the genres that appeared most within these and saw that action seems to be the least popular among these audiences which matches the observation we saw previously when we focused on genre specifically.
+
+The following genres did the worst in terms of global sales, critic score, and user score based on our plots below:
+
+- E-Rated: Sports, Platform, Racing, Action, and Misc
+- E10-Rated: Action and Platform
+- T-Rated: Action, Shooter, and Fighting
+- M-Rated: Shooter and Action
+
+As we can see, action is common among the different ratings for being some of the least attractive games. This supports the claim we had before about action being the least popular genre. The list of games that printed out from each rating took into account the least popular genre which includes action and shooter games. (I hid the code in html for the plots due to its similarity with the code for E-Rated Games but with just the respective tibbles for each rating.)
+
+E for Everyone:
+```{r, collapse=T}
+#Gets summaries of global sales, critic score, and user score to obtain the lower 25% 
+summary(E_Rated_Games$Global_Sales)
+summary(E_Rated_Games$Critic_Score)
+summary(E_Rated_Games$User_Score)
+#filters to get the games that fit all the worst info and arranges them as needed
+LSGE <- filter(E_Rated_Games, Global_Sales < 0.1300, Critic_Score < 63.00, User_Score < 6.400)
+LSGE <- select(LSGE, Name, Genre, Global_Sales, Critic_Score, User_Score)
+LSGE <- arrange(LSGE, Global_Sales, Critic_Score, User_Score)
+#gives information about what genres these least attractive games are for this audience
+LSGEG <- LSGE %>% group_by(Genre) %>% summarise(amount = n()) %>% arrange(desc(amount))
+LSGEG
+#plots the info about genre to get a visual
+ggplot(data = LSGEG) +
+  geom_bar(aes(x = Genre, y = amount, fill = Genre), stat = "identity") +
+  ggtitle("Least Popular Genres of E Rated Games") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+
+LSGEA <- LSGE %>% filter(Genre == "Action" | Genre == "Shooter")
+#top part of these least attractive games
+head(LSGEA)
+```
+
+E10 for Everyone 10+:
+```{r, echo=F}
+#Gets summaries of global sales, critic score, and user score to obtain the lower 25% 
+summary(E10_Rated_Games$Global_Sales)
+summary(E10_Rated_Games$Critic_Score)
+summary(E10_Rated_Games$User_Score)
+#filters to get the games that fit all the worst info and arranges them as needed
+LSGE10 <- filter(E10_Rated_Games, Global_Sales < 0.1100, Critic_Score < 60.00, User_Score < 6.200)
+LSGE10 <- select(LSGE10, Name, Genre, Global_Sales, Critic_Score, User_Score)
+LSGE10 <- arrange(LSGE10, Global_Sales, Critic_Score, User_Score)
+#gives information about what genres these least attractive games are for this audience
+LSGE10G <- LSGE10 %>% group_by(Genre) %>% summarise(amount = n()) %>% arrange(desc(amount))
+LSGE10G
+#plots the info about genre to get a visual
+ggplot(data = LSGE10G) +
+  geom_bar(aes(x = Genre, y = amount, fill = Genre), stat = "identity") +
+  ggtitle("Least Popular Genres of E10 Rated Games") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+
+LSGE10A <- LSGE10 %>% filter(Genre == "Action" | Genre == "Shooter")
+#top part of these least attractive games
+head(LSGE10A)
+```
+
+T for Teens:
+```{r, echo=F}
+#Gets summaries of global sales, critic score, and user score to obtain the lower 25% 
+summary(T_Rated_Games$Global_Sales)
+summary(T_Rated_Games$Critic_Score)
+summary(T_Rated_Games$User_Score)
+
+#filters to get the games that fit all the worst info and arranges them as needed
+LSGT <- filter(T_Rated_Games, Global_Sales < 0.1000, Critic_Score < 61.00, User_Score < 6.700)
+LSGT <- select(LSGT, Name, Genre, Global_Sales, Critic_Score, User_Score)
+LSGT <- arrange(LSGT, Global_Sales, Critic_Score, User_Score)
+#gives information about what genres these least attractive games are for this audience
+LSGTG <- LSGT %>% group_by(Genre) %>% summarise(amount = n())  %>% arrange(desc(amount))
+LSGTG
+#plots the info about genre to get a visual
+ggplot(data = LSGTG) +
+  geom_bar(aes(x = Genre, y = amount, fill = Genre), stat = "identity") +
+  ggtitle("Least Popular Genres of T Rated Games") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+
+LSGTA <- LSGT %>% filter(Genre == "Action" | Genre == "Shooter")
+LSGTA <- LSGTA[-c(2),] #remove repeat
+#top part of these least attractive games
+head(LSGTA)
+```
+
+M for Mature Audiences 17+:
+```{r, echo=F}
+#Gets summaries of global sales, critic score, and user score to obtain the lower 25% 
+summary(M_Rated_Games$Global_Sales)
+summary(M_Rated_Games$Critic_Score)
+summary(M_Rated_Games$User_Score)
+#filters to get the games that fit all the worst info and arranges them as needed
+LSGM <- filter(M_Rated_Games, Global_Sales < 0.1200, Critic_Score < 63.00, User_Score < 6.500)
+LSGM <- select(LSGM, Name, Genre, Global_Sales, Critic_Score, User_Score)
+LSGM <- arrange(LSGM, Global_Sales, Critic_Score, User_Score)
+#gives information about what genres these least attractive games are for this audience
+LSGMG <- LSGM %>% group_by(Genre) %>% summarise(amount = n())  %>% arrange(desc(amount))
+LSGMG
+#plots the info about genre to get a visual
+ggplot(data = LSGMG) +
+  geom_bar(aes(x = Genre, y = amount, fill = Genre), stat = "identity") +
+  ggtitle("Least Popular Genres of M Rated Games") +
+  theme(axis.text.x = element_text(size=10, angle=90))
+#list of games that also take into account the least popular genre
+LSGMA <- LSGM %>% filter(Genre == "Action" | Genre == "Shooter")
+#top part of these least attractive games
+head(LSGMA)
+```
+
+## **Potential Models with Rating as a Predictor**
+
+Since we were looking at ratings specifically for one of our objective questions, we decided to see if we could build any models that use ratings as predictors for global sales, critics score, or user score. For these models, we can see that the adjusted $R^2$ is very low which is an indication of a model that isn't very well fit in helping predict the global sales, critic score, or user score. As seen based on the p-values below, there is no specific rating that has a significant relationship with global sales, critic score, or user score. With the model called ‘lm.fit4’, we can see that when using the critics and user score as a predictor, it does have a significant relationship with global sales. However, despite that, the model still has a low adjusted $R^2$ which indicates that the model is not the best. 
+
+```{r,collapse=T}
+#model for Global Sales with predictor Ratings
+lm.fit1 <- lm(Global_Sales ~ Rating, videogames1)
+lm.sum1 <- summary(lm.fit1)
+lm.sum1
+#model for Critic Score with predictor Ratings
+lm.fit2 <- lm(Critic_Score ~ Rating, videogames1)
+lm.sum2 <- summary(lm.fit2)
+lm.sum2
+#model for User Score and Ratings
+videogames1 <- transform(videogames1, User_Score = as.numeric(User_Score))
+lm.fit3 <- lm(User_Score ~ Rating, videogames1)
+lm.sum3 <- summary(lm.fit3)
+lm.sum3
+#model for Global Sales with Ratings, Critic_Score, and User_Score
+lm.fit4 <- lm(Global_Sales ~ Rating + Critic_Score + User_Score, videogames1)
+lm.sum4 <- summary(lm.fit4)
+lm.sum4
+```
+
+To evaluate the models even further, we decided to use the model validation set approach which splits our data into a training and testing set. After building them, we want to take a look at their adjusted $R^2$ values and MSE to see if our models are usable.
+
+Model Validation Set Approach for Potential Models:
+
+```{r, collapse=T}
+dim(videogames1)  #dimensions of dataset
+#split data in 50/50 into training and test set
+set.seed(167) #so analysis is reproducible
+train.idx <-sample(6947, 3473) #random sample the training data index
+train <- videogames1[train.idx, ] #training set
+test <- videogames1[-train.idx, ] #validation/test set
+#Global sales~ratings training model
+lm.train.gr <- lm(Global_Sales ~ Rating, train)
+#Obtaining MSE and adjusted R^2 for training set
+mean(lm.train.gr$residuals^2)
+summary(lm.train.gr)$adj.r.squared
+#Global sales~ratings testing model
+lm.test.gr <- lm(Global_Sales ~ Rating, test)
+#Obtaining MSE and adjusted R^2 for testing set
+mean(lm.test.gr$residuals^2)
+summary(lm.test.gr)$adj.r.squared
+#Critic_Score~rating training model
+lm.train.cr <- lm(Critic_Score ~ Rating, train)
+#Obtaining MSE and adjusted R^2 for training set
+mean(lm.train.cr$residuals^2)
+summary(lm.train.cr)$adj.r.squared
+#Critic_Score~rating testing model
+lm.test.cr <- lm(Critic_Score ~ Rating, test)
+#Obtaining MSE and adjusted R^2 for testing set
+mean(lm.test.cr$residuals^2)
+summary(lm.test.cr)$adj.r.squared
+train <- transform(train, User_Score = as.numeric(User_Score))
+test <- transform(test, User_Score = as.numeric(User_Score))
+#User_Score~rating training model
+lm.train.ur <- lm(User_Score ~ Rating, train)
+#Obtaining MSE and adjusted R^2 for training set
+mean(lm.train.ur$residuals^2)
+summary(lm.train.ur)$adj.r.squared
+#User_Score~rating testing model
+lm.test.ur <- lm(User_Score ~ Rating, test)
+#Obtaining MSE and adjusted R^2 for testing set
+mean(lm.test.ur$residuals^2)
+summary(lm.test.ur)$adj.r.squared
+#Global sales~ratings+critic score+user score training model
+lm.train.grcu <- lm(Global_Sales ~ Rating + Critic_Score + User_Score, train)
+#Obtaining MSE and adjusted R^2 for training set
+mean(lm.train.grcu$residuals^2)
+summary(lm.train.grcu)$adj.r.squared
+#Global sales~ratings+critic score+user score testing model
+lm.test.grcu <- lm(Global_Sales ~ Rating + Critic_Score + User_Score, test)
+#Obtaining MSE and adjusted R^2 for testing set
+mean(lm.test.grcu$residuals^2)
+summary(lm.test.grcu)$adj.r.squared
+```
+
+As seen above, the adjusted $R^2$ values for the testing models are very low which is unfavorable. With the model that hopes to predict critics score while using ratings as a predictor, we can see that the MSE is very high and the adjusted $R^2$ value is very low which makes this the worst model out of all of these. If we were to choose the best model out of all of these, it would be the last model that uses critics score, user score, and ratings as predictors for global sales. However, it still is not the best model. Due to the low MSE and low adjusted $R^2$ value of our models, it might be a case of overfitting which is not favorable. These models also tell us that ratings may not be an important factor in predicting any of the variables used in the models above.
